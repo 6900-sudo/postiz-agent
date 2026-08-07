@@ -39,3 +39,6 @@ coverage/
 
 # Local campaign media — kept off GitHub intentionally
 campaigns/
+
+# Local Claude Code settings (personal, not shared)
+.claude/settings.local.json
