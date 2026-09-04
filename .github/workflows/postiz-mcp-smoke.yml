@@ -1,0 +1,28 @@
+name: Postiz MCP smoke test
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "scripts/test-postiz-mcp.sh"
+      - ".github/workflows/postiz-mcp-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      POSTIZ_BASE_URL: https://api.postiz.com
+      POSTIZ_API_KEY: ${{ secrets.POSTIZ_API_KEY }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Run Postiz MCP/OAuth smoke test
+        shell: bash
+        run: bash scripts/test-postiz-mcp.sh
