@@ -5,6 +5,8 @@ export interface PostizConfig {
   apiUrl?: string;
 }
 
+type RequestOptions = Record<string, unknown>;
+
 export class PostizAPI {
   private apiKey: string;
   private apiUrl: string;
@@ -14,7 +16,7 @@ export class PostizAPI {
     this.apiUrl = config.apiUrl || 'https://api.postiz.com';
   }
 
-  private async request(endpoint: string, options: any = {}) {
+  private async request(endpoint: string, options: RequestOptions = {}) {
     const url = `${this.apiUrl}${endpoint}`;
     const headers = {
       'Content-Type': 'application/json',
@@ -34,19 +36,19 @@ export class PostizAPI {
       }
 
       return await response.json();
-    } catch (error: any) {
-      throw new Error(`Request failed: ${error.message}`);
+    } catch (error) {
+      throw new Error(`Request failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
-  async createPost(data: any) {
+  async createPost(data: Record<string, unknown>) {
     return this.request('/public/v1/posts', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
 
-  async listPosts(filters: any = {}) {
+  async listPosts(filters: Record<string, unknown> = {}) {
     const queryString = new URLSearchParams(
       Object.entries(filters).reduce((acc, [key, value]) => {
         if (value !== undefined && value !== null) {
