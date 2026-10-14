@@ -5,7 +5,12 @@ export interface PostizConfig {
   apiUrl?: string;
 }
 
-type RequestOptions = Record<string, unknown>;
+interface RequestOptions {
+  [key: string]: unknown;
+  method?: string;
+  headers?: Record<string, string>;
+  body?: string;
+}
 
 export class PostizAPI {
   private apiKey: string;
