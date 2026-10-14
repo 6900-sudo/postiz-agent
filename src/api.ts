@@ -5,13 +5,6 @@ export interface PostizConfig {
   apiUrl?: string;
 }
 
-interface RequestOptions {
-  [key: string]: unknown;
-  method?: string;
-  headers?: Record<string, string>;
-  body?: string;
-}
-
 export class PostizAPI {
   private apiKey: string;
   private apiUrl: string;
@@ -21,7 +14,7 @@ export class PostizAPI {
     this.apiUrl = config.apiUrl || 'https://api.postiz.com';
   }
 
-  private async request(endpoint: string, options: RequestOptions = {}) {
+  private async request(endpoint: string, options: { method?: string; body?: string; headers?: Record<string, string> } = {}) {
     const url = `${this.apiUrl}${endpoint}`;
     const headers = {
       'Content-Type': 'application/json',
