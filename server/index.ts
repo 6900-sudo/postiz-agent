@@ -3,24 +3,25 @@ import { URL } from 'url';
 import { randomBytes } from 'crypto';
 import fetch from 'node-fetch';
 import pg from 'pg';
+import { env, exit } from 'node:process';
 
 // --- Configuration ---
-const PORT = parseInt(process.env.PORT || '3111', 10);
-const CLIENT_ID = process.env.POSTIZ_OAUTH_CLIENT_ID!;
-const CLIENT_SECRET = process.env.POSTIZ_OAUTH_CLIENT_SECRET!;
-const FRONTEND_URL = process.env.POSTIZ_FRONTEND_URL || 'https://platform.postiz.com';
-const API_URL = process.env.POSTIZ_API_URL || 'https://api.postiz.com';
-const SERVER_URL = process.env.SERVER_URL || `http://localhost:${PORT}`;
-const DATABASE_URL = process.env.DATABASE_URL!;
+const PORT = parseInt(env.PORT || '3111', 10);
+const CLIENT_ID = env.POSTIZ_OAUTH_CLIENT_ID!;
+const CLIENT_SECRET = env.POSTIZ_OAUTH_CLIENT_SECRET!;
+const FRONTEND_URL = env.POSTIZ_FRONTEND_URL || 'https://platform.postiz.com';
+const API_URL = env.POSTIZ_API_URL || 'https://api.postiz.com';
+const SERVER_URL = env.SERVER_URL || `http://localhost:${PORT}`;
+const DATABASE_URL = env.DATABASE_URL!;
 
 if (!CLIENT_ID || !CLIENT_SECRET) {
   console.error('POSTIZ_OAUTH_CLIENT_ID and POSTIZ_OAUTH_CLIENT_SECRET are required');
-  process.exit(1);
+  exit(1);
 }
 
 if (!DATABASE_URL) {
   console.error('DATABASE_URL is required');
-  process.exit(1);
+  exit(1);
 }
 
 // --- Postgres ---
@@ -220,18 +221,18 @@ async function handleOAuthCallback(req: IncomingMessage, res: ServerResponse) {
       return;
     }
 
-    const tokenData = (await tokenResponse.json()) as any;
+    const tokenData = (await tokenResponse.json()) as Record<string, unknown>;
 
     await pool.query(
       `UPDATE device_requests
        SET status = 'completed', access_token = $1, api_url = $2, organization_id = $3
        WHERE device_code = $4`,
-      [tokenData.access_token, API_URL, tokenData.id || null, state]
+      [tokenData.access_token as string, API_URL, (tokenData.id as string) || null, state]
     );
 
     html(res, 200, '<h2 class="success">Authorization successful!</h2><p>You can close this window and return to your terminal.</p>');
-  } catch (err: any) {
-    html(res, 500, `<h2 class="error">Error</h2><p>${escapeHtml(err.message)}</p>`);
+  } catch (err) {
+    html(res, 500, `<h2 class="error">Error</h2><p>${escapeHtml(err instanceof Error ? err.message : String(err))}</p>`);
   }
 }
 
@@ -314,7 +315,7 @@ const server = createServer(async (req, res) => {
     } else {
       json(res, 404, { error: 'not_found' });
     }
-  } catch (err: any) {
+  } catch (err) {
     console.error('Unhandled error:', err);
     json(res, 500, { error: 'internal_error' });
   }
@@ -349,5 +350,5 @@ process.on('unhandledRejection', (err) => {
 
 start().catch((err) => {
   console.error('Failed to start:', err);
-  process.exit(1);
+  exit(1);
 });
