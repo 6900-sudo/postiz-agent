@@ -2,6 +2,8 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync, chmodSy
 import { join } from 'path';
 import { homedir } from 'os';
 import fetch from 'node-fetch';
+import { exit, env, platform } from 'node:process';
+import { exec } from 'node:child_process';
 
 const CREDENTIALS_DIR = join(homedir(), '.postiz');
 const CREDENTIALS_FILE = join(CREDENTIALS_DIR, 'credentials.json');
@@ -12,6 +14,10 @@ interface StoredCredentials {
   accessToken: string;
   apiUrl: string;
   organizationId?: string;
+}
+
+interface AuthArgs extends Record<string, unknown> {
+  authServer?: string;
 }
 
 export function loadCredentials(): StoredCredentials | null {
@@ -41,9 +47,6 @@ function deleteCredentials(): void {
 }
 
 function openBrowser(url: string): void {
-  const { exec } = require('child_process');
-  const platform = process.platform;
-
   if (platform === 'darwin') {
     exec(`open "${url}"`);
   } else if (platform === 'win32') {
@@ -57,8 +60,8 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function authLogin(argv: any) {
-  const authServer = argv.authServer || process.env.POSTIZ_AUTH_SERVER || DEFAULT_AUTH_SERVER;
+export async function authLogin(argv: AuthArgs) {
+  const authServer = (argv.authServer as string) || env.POSTIZ_AUTH_SERVER || DEFAULT_AUTH_SERVER;
 
   console.log('🔐 Starting device authorization flow...\n');
 
@@ -78,18 +81,18 @@ export async function authLogin(argv: any) {
     if (!response.ok) {
       const error = await response.text();
       console.error(`❌ Failed to start authorization (${response.status}): ${error}`);
-      process.exit(1);
+      exit(1);
     }
 
-    const data = (await response.json()) as any;
-    deviceCode = data.device_code;
-    userCode = data.user_code;
-    verificationUri = data.verification_uri;
-    expiresIn = data.expires_in;
-    interval = data.interval || 5;
-  } catch (error: any) {
-    console.error(`❌ Could not reach auth server at ${authServer}: ${error.message}`);
-    process.exit(1);
+    const data = (await response.json()) as Record<string, unknown>;
+    deviceCode = data.device_code as string;
+    userCode = data.user_code as string;
+    verificationUri = data.verification_uri as string;
+    expiresIn = data.expires_in as number;
+    interval = (data.interval as number) || 5;
+  } catch (error) {
+    console.error(`❌ Could not reach auth server at ${authServer}: ${error instanceof Error ? error.message : String(error)}`);
+    exit(1);
   }
 
   // Step 2: Show the user code and open browser
@@ -117,13 +120,13 @@ export async function authLogin(argv: any) {
         body: JSON.stringify({ device_code: deviceCode }),
       });
 
-      const data = (await response.json()) as any;
+      const data = (await response.json()) as Record<string, unknown>;
 
       if (response.ok && data.access_token) {
         saveCredentials({
-          accessToken: data.access_token,
-          apiUrl: data.api_url || 'https://api.postiz.com',
-          organizationId: data.organization_id,
+          accessToken: data.access_token as string,
+          apiUrl: (data.api_url as string) || 'https://api.postiz.com',
+          organizationId: data.organization_id as string | undefined,
         });
 
         console.log('✅ Successfully authenticated!');
@@ -140,12 +143,12 @@ export async function authLogin(argv: any) {
 
       if (data.error === 'expired_token') {
         console.error('❌ Authorization expired. Please try again.');
-        process.exit(1);
+        exit(1);
       }
 
       // Unknown error
       console.error(`❌ Authorization failed: ${data.error}`);
-      process.exit(1);
+      exit(1);
     } catch {
       // Network error during poll — keep trying
       continue;
@@ -153,7 +156,7 @@ export async function authLogin(argv: any) {
   }
 
   console.error('❌ Authorization timed out. Please try again.');
-  process.exit(1);
+  exit(1);
 }
 
 export async function authLogout() {
@@ -168,7 +171,7 @@ export async function authLogout() {
 }
 
 export async function authStatus() {
-  const envKey = process.env.POSTIZ_API_KEY;
+  const envKey = env.POSTIZ_API_KEY;
   const creds = loadCredentials();
 
   let apiKey: string | undefined;
@@ -188,7 +191,7 @@ export async function authStatus() {
     console.log('🔑 Authentication method: API Key (environment variable)');
     console.log(`🔑 Key: ${envKey.substring(0, 8)}...`);
     apiKey = envKey;
-    apiUrl = process.env.POSTIZ_API_URL || 'https://api.postiz.com';
+    apiUrl = env.POSTIZ_API_URL || 'https://api.postiz.com';
   } else {
     console.log('❌ Not authenticated.');
     console.log('\nOptions:');
@@ -209,7 +212,7 @@ export async function authStatus() {
     });
 
     if (response.ok) {
-      const integrations = (await response.json()) as any[];
+      const integrations = (await response.json()) as Array<Record<string, unknown>>;
       console.log(`✅ Credentials are valid. ${integrations.length} integration(s) connected.`);
     } else if (response.status === 401 || response.status === 403) {
       console.log('❌ Credentials are expired or invalid. Please re-authenticate.');
@@ -222,7 +225,7 @@ export async function authStatus() {
       const error = await response.text();
       console.log(`⚠️  Could not verify credentials (HTTP ${response.status}): ${error}`);
     }
-  } catch (error: any) {
-    console.log(`⚠️  Could not reach API to verify credentials: ${error.message}`);
+  } catch (error) {
+    console.log(`⚠️  Could not reach API to verify credentials: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
